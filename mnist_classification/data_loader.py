@@ -50,7 +50,7 @@ def get_loaders(config):
     train_cnt = int(x.size(0) * config.train_ratio)
     valid_cnt = x.size(0) - train_cnt
 
-    flatten = True if config.model == 'fc' else False
+    flatten = True
 
     # Shuffle dataset to split into train/valid set.
     indices = torch.randperm(x.size(0))

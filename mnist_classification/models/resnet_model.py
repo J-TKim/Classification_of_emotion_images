@@ -10,7 +10,7 @@ model_urls = {
     'wide_resnet101_2': 'https://download.pytorch.org/models/wide_resnet101_2-32ee1156.pth',
 }
 
-def resnet152(pretrained=False, progress=True, **kwargs):
+def resnet152(pretrained=True, progress=True, **kwargs):
     r"""ResNet-152 model from
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
     Args:
