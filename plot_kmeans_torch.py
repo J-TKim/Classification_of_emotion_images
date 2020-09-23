@@ -1,26 +1,37 @@
-"""
-================================
-K-means clustering - PyTorch API
-================================
+#!/usr/bin/env python
+# coding: utf-8
 
-The :meth:`pykeops.torch.LazyTensor.argmin` reduction supported by KeOps :class:`pykeops.torch.LazyTensor` allows us
-to perform **bruteforce nearest neighbor search** with four lines of code.
-It can thus be used to implement a **large-scale** 
-`K-means clustering <https://en.wikipedia.org/wiki/K-means_clustering>`_,
-**without memory overflows**.
+# In[1]:
 
-.. note::
-  For large and high dimensional datasets, this script 
-  **outperforms its NumPy counterpart**
-  as it avoids transfers between CPU (host) and GPU (device) memories.
 
-  
-"""
+get_ipython().run_line_magic('matplotlib', 'inline')
 
-########################################################################
+
+# 
+# # K-means clustering - PyTorch API
+# 
+# 
+# The :meth:`pykeops.torch.LazyTensor.argmin` reduction supported by KeOps :class:`pykeops.torch.LazyTensor` allows us
+# to perform **bruteforce nearest neighbor search** with four lines of code.
+# It can thus be used to implement a **large-scale** 
+# `K-means clustering <https://en.wikipedia.org/wiki/K-means_clustering>`_,
+# **without memory overflows**.
+# 
+# <div class="alert alert-info"><h4>Note</h4><p>For large and high dimensional datasets, this script 
+#   **outperforms its NumPy counterpart**
+#   as it avoids transfers between CPU (host) and GPU (device) memories.</p></div>
+# 
+#   
+# 
+
 # Setup 
 # -----------------
 # Standard imports:
+# 
+# 
+
+# In[2]:
+
 
 import time
 
@@ -32,8 +43,13 @@ from pykeops.torch import LazyTensor
 use_cuda = torch.cuda.is_available()
 dtype = 'float32' if use_cuda else 'float64'
 torchtype = {'float32': torch.float32, 'float64': torch.float64}
-########################################################################
+
+
 # Simple implementation of the K-means algorithm:
+# 
+# 
+
+# In[3]:
 
 
 def KMeans(x, K=10, Niter=10, verbose=True):
@@ -65,38 +81,65 @@ def KMeans(x, K=10, Niter=10, verbose=True):
                 Niter, end - start, Niter, (end-start) / Niter))
 
     return cl, c
-        
 
-###############################################################
+
 # K-means in 2D
 # ----------------------
 # First experiment with N=10,000 points in dimension D=2, with K=50 classes:
-#
+# 
+# 
+# 
+
+# In[4]:
+
+
 N, D, K = 10000, 2, 50
 
-###############################################################
+
 # Define our dataset:
+# 
+# 
+
+# In[5]:
+
+
 x = torch.randn(N, D, dtype=torchtype[dtype]) / 6 + .5
 
-###############################################################
+
 # Perform the computation:
+# 
+# 
+
+# In[6]:
+
+
 cl, c = KMeans(x, K)
 
-###############################################################
+
 # Fancy display:
+# 
+# 
+
+# In[ ]:
+
 
 plt.figure(figsize=(8,8))
 plt.scatter(x[:, 0].cpu(), x[:, 1].cpu(), c=cl.cpu(), s= 30000 / len(x), cmap="tab10")
 plt.scatter(c[:, 0].cpu(), c[:, 1].cpu(), c='black', s=50, alpha=.8)
 plt.axis([0,1,0,1]) ; plt.tight_layout() ; plt.show()
- 
 
-####################################################################
+
 # K-means in dimension 100
 # -------------------------
 # Second experiment with N=1,000,000 points in dimension D=100, with K=1,000 classes:
+# 
+# 
+
+# In[ ]:
+
 
 if use_cuda:
     N, D, K = 1000000, 100, 1000
     x = torch.randn(N, D, dtype=torchtype[dtype])
     cl, c = KMeans(x, K)
+
