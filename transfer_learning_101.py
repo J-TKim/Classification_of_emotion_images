@@ -488,7 +488,7 @@ def train_model(model,dataloaders,criterion,num_epochs=10,lr=0.0001,batch_size=8
             plot_confusion_matrix(true, pred, classes= classes,title='Confusion matrix, without normalization')
 
 
-# In[ ]:
+# In[19]:
 
 
 train_model(classifier,dataloaders,criterion,50, patience = 10 , batch_size = batch_size , classes = classes)
