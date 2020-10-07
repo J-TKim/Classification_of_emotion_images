@@ -25,16 +25,18 @@ from torch.autograd import Variable
 # In[2]:
 
 
-device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 # In[3]:
 
 
+# 정규화 하는 함수
 def normalization_parameter(dataloader):
     mean = 0.
     std = 0.
     nb_samples = len(dataloader.dataset)
+    # tqdm은 진행상태를 알려주는 함수
     for data,_ in tqdm(dataloader):
         batch_samples = data.size(0)
         data = data.view(batch_samples, data.size(1), -1)
@@ -51,9 +53,11 @@ def normalization_parameter(dataloader):
 im_size = 150
 batch_size = 16
 
+# 이미지 형태 변형
 train_transforms = transforms.Compose([
                                         transforms.Resize((im_size,im_size)),
                                         transforms.ToTensor()])
+
 train_data = torchvision.datasets.ImageFolder(root = '../dataset/emotion6/train', transform = train_transforms)
 train_loader =  DataLoader(train_data, batch_size = batch_size , shuffle = True)
 mean,std = normalization_parameter(train_loader)
@@ -62,6 +66,7 @@ mean,std = normalization_parameter(train_loader)
 # In[5]:
 
 
+# 이미지 형태 변형
 train_transforms = transforms.Compose([
                                         transforms.Resize((im_size,im_size)),
                                         transforms.RandomResizedCrop(size=315, scale=(0.95, 1.0)),
@@ -70,6 +75,7 @@ train_transforms = transforms.Compose([
                                         transforms.CenterCrop(size=299),  # Image net standards
                                         transforms.ToTensor(),
                                         transforms.Normalize(mean,std)])
+# 테스트 이미지는 변환 x
 test_transforms = transforms.Compose([
                                         transforms.Resize((im_size,im_size)),
                                         transforms.ToTensor(),
@@ -79,6 +85,7 @@ test_transforms = transforms.Compose([
 # In[6]:
 
 
+# 평균과 표준편차를 역수로 바꿈
 inv_normalize =  transforms.Normalize(
     mean=-1*np.divide(mean,std),
     std=1/std
@@ -88,7 +95,7 @@ inv_normalize =  transforms.Normalize(
 # In[7]:
 
 
-#We need to pass path to folder containing folders of classes
+# 이미지 데이터들의 폴더를 지정해줌
 train_data = torchvision.datasets.ImageFolder(root = '../dataset/emotion6/train', transform = train_transforms)
 test_data = torchvision.datasets.ImageFolder(root = '../dataset/emotion6/test', transform = test_transforms)
 
@@ -110,6 +117,7 @@ def data_loader(train_data,test_data = None , valid_size = None , batch_size = 3
         dataloaders = {'train':train_loader,'val':valid_loader}
         return dataloaders
     
+    ###
     if(test_data != None and valid_size!=None):
         data_len = len(test_data)
         indices = list(range(data_len))
@@ -152,6 +160,7 @@ encoder
 # In[11]:
 
 
+# 사진이 레이블링이 잘 됐나, 사진이 잘 나왔나 확인
 def class_plot(data , encoder ,inv_normalize = None,n_figures = 12):
     n_row = int(n_figures/4)
     fig,axes = plt.subplots(figsize=(14, 10), nrows = n_row, ncols=4)
@@ -175,21 +184,12 @@ class_plot(train_data,encoder,inv_normalize)
 # In[12]:
 
 
-net = models.resnet152(pretrained=True)
-net = net.to(device)
-
-
-# In[13]:
-
-
+# 모델 작성
 class Classifier(nn.Module):
     def __init__(self):
         super(Classifier, self).__init__()
-        ######################################
         # pretrained model을 바꾸기 위해선 이부분을 교체
-        # => 추후에 모델을 class로 작성해서 불러올 수 있도록 하기
-        ######################################
-        self.resnet = models.resnet152(pretrained=True) 
+        self.resnet = models.resnet101(pretrained=True) 
         self.l1 = nn.Linear(1000 , 256)
         self.dropout = nn.Dropout(0.75)
         self.l2 = nn.Linear(256,6)
@@ -206,15 +206,17 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 classifier = Classifier().to(device)
 
 
-# In[14]:
+# In[13]:
 
 
+# 크로스 엔트로피 loss
 criterion = nn.CrossEntropyLoss()
 
 
-# In[15]:
+# In[14]:
 
 
+# 얼리스탑핑
 class EarlyStopping:
     """Early stops the training if validation loss doesn't improve after a given patience."""
     def __init__(self, patience=7, verbose=False):
@@ -257,14 +259,14 @@ class EarlyStopping:
         self.val_loss_min = val_loss
 
 
-# In[16]:
+# In[15]:
 
 
+# train
 def train(model,dataloaders,criterion,num_epochs=10,lr=0.00001,batch_size=8,patience = None):
     since = time.time()
     model.to(device)
     best_acc = 0.0
-    i = 0
     phase1 = dataloaders.keys()
     losses = list()
     acc = list()
@@ -321,7 +323,7 @@ def train(model,dataloaders,criterion,num_epochs=10,lr=0.00001,batch_size=8,pati
     return losses,acc
 
 
-# In[17]:
+# In[16]:
 
 
 def test(dataloader):
@@ -364,7 +366,7 @@ def test(dataloader):
     return true,pred,image,true_wrong,pred_wrong
 
 
-# In[18]:
+# In[17]:
 
 
 def error_plot(loss):
@@ -462,7 +464,7 @@ def performance_matrix(true,pred):
     print('Precision: {} Recall: {}, Accuracy: {}: ,f1_score: {}'.format(precision*100,recall*100,accuracy*100,f1_score*100))
 
 
-# In[19]:
+# In[18]:
 
 
 def train_model(model,dataloaders,criterion,num_epochs=10,lr=0.0001,batch_size=8,patience = None,classes = None):
@@ -486,14 +488,8 @@ def train_model(model,dataloaders,criterion,num_epochs=10,lr=0.0001,batch_size=8
             plot_confusion_matrix(true, pred, classes= classes,title='Confusion matrix, without normalization')
 
 
-# In[20]:
-
-
-train_model(classifier,dataloaders,criterion,10, patience = 3 , batch_size = batch_size , classes = classes)
-
-
 # In[ ]:
 
 
-
+train_model(classifier,dataloaders,criterion,50, patience = 10 , batch_size = batch_size , classes = classes)
 
