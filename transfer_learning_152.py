@@ -14,12 +14,17 @@ import torch.nn as nn
 import torch.optim as optim
 import torchvision
 
+from torch.utils.data import DataLoader
 from sklearn import metrics
 from torchvision import transforms, models
-from torch.utils.data import DataLoader
-from tqdm.autonotebook import tqdm
-from torch.utils.data.sampler import SubsetRandomSampler
 from torch.autograd import Variable
+
+from sklearn.model_selection import cross_val_score
+from normalization import normalization_parameter
+from mydataloader import data_loader
+from classplot import class_plot
+
+from pretrained_resnet152 import pretrained_resnet152
 
 
 # In[2]:
@@ -31,44 +36,23 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # In[3]:
 
 
-# 정규화 하는 함수
-def normalization_parameter(dataloader):
-    mean = 0.
-    std = 0.
-    nb_samples = len(dataloader.dataset)
-    # tqdm은 진행상태를 알려주는 함수
-    for data,_ in tqdm(dataloader):
-        batch_samples = data.size(0)
-        data = data.view(batch_samples, data.size(1), -1)
-        mean += data.mean(2).sum(0)
-        std += data.std(2).sum(0)
-    mean /= nb_samples
-    std /= nb_samples
-    return mean.numpy(),std.numpy()
-
-
-# In[4]:
-
-
 im_size = 150
 batch_size = 16
 
 # 이미지 형태 변형
-train_transforms = transforms.Compose([
-                                        transforms.Resize((im_size,im_size)),
-                                        transforms.ToTensor()])
+train_transforms = transforms.Compose([transforms.Resize((im_size,im_size)),
+                                       transforms.ToTensor()])
 
 train_data = torchvision.datasets.ImageFolder(root = '../dataset/emotion6/train', transform = train_transforms)
 train_loader =  DataLoader(train_data, batch_size = batch_size , shuffle = True)
 mean,std = normalization_parameter(train_loader)
 
 
-# In[5]:
+# In[4]:
 
 
 # 이미지 형태 변형
-train_transforms = transforms.Compose([
-                                        transforms.Resize((im_size,im_size)),
+train_transforms = transforms.Compose([transforms.Resize((im_size,im_size)),
                                         transforms.RandomResizedCrop(size=315, scale=(0.95, 1.0)),
                                         transforms.RandomRotation(degrees=10),
                                         transforms.RandomHorizontalFlip(),
@@ -76,13 +60,12 @@ train_transforms = transforms.Compose([
                                         transforms.ToTensor(),
                                         transforms.Normalize(mean,std)])
 # 테스트 이미지는 변환 x
-test_transforms = transforms.Compose([
-                                        transforms.Resize((im_size,im_size)),
+test_transforms = transforms.Compose([transforms.Resize((im_size,im_size)),
                                         transforms.ToTensor(),
                                         transforms.Normalize(mean,std)])
 
 
-# In[6]:
+# In[5]:
 
 
 # 평균과 표준편차를 역수로 바꿈
@@ -92,55 +75,22 @@ inv_normalize =  transforms.Normalize(
 )
 
 
-# In[7]:
+# In[6]:
 
 
 # 이미지 데이터들의 폴더를 지정해줌
 train_data = torchvision.datasets.ImageFolder(root = '../dataset/emotion6/train', transform = train_transforms)
 test_data = torchvision.datasets.ImageFolder(root = '../dataset/emotion6/test', transform = test_transforms)
 
-def data_loader(train_data,test_data = None , valid_size = None , batch_size = 32):
-    train_loader =  DataLoader(train_data, batch_size = batch_size , shuffle = True)
-    
-    if(test_data == None and valid_size == None):
-        dataloaders = {'train':train_loader}
-        return dataloaders
-    
-    if(test_data == None and valid_size!=None):
-        data_len = len(train_data)
-        indices = list(range(data_len))
-        np.random.shuffle(indices)
-        split1 = int(np.floor(valid_size * data_len))
-        valid_idx , test_idx = indices[:split1], indices[split1:]
-        valid_sampler = SubsetRandomSampler(valid_idx)
-        valid_loader = DataLoader(train_data, batch_size= batch_size, sampler=valid_sampler)
-        dataloaders = {'train':train_loader,'val':valid_loader}
-        return dataloaders
-    
-    ###
-    if(test_data != None and valid_size!=None):
-        data_len = len(test_data)
-        indices = list(range(data_len))
-        np.random.shuffle(indices)
-        split1 = int(np.floor(valid_size * data_len))
-        valid_idx , test_idx = indices[:split1], indices[split1:]
-        valid_sampler = SubsetRandomSampler(valid_idx)
-        test_sampler = SubsetRandomSampler(test_idx)
-        valid_loader = DataLoader(test_data, batch_size= batch_size, sampler=valid_sampler)
-        test_loader = DataLoader(test_data, batch_size= batch_size, sampler=test_sampler)
-        dataloaders = {'train':train_loader,'val':valid_loader,'test':test_loader}
-        
-        return dataloaders
+
+# In[7]:
 
 
-# In[8]:
-
-
-dataloaders = data_loader(train_data,test_data , valid_size = 0.2 , batch_size = batch_size)
+dataloaders = data_loader(train_data,  test_size= 0.2 , batch_size = batch_size)
 classes = train_data.classes
 
 
-# In[9]:
+# In[8]:
 
 
 decoder = {}
@@ -151,69 +101,26 @@ for i in range(len(classes)):
     encoder[i] = classes[i]
 
 
-# In[10]:
+# In[9]:
 
 
-encoder
-
-
-# In[11]:
-
-
-# 사진이 레이블링이 잘 됐나, 사진이 잘 나왔나 확인
-def class_plot(data , encoder ,inv_normalize = None,n_figures = 12):
-    n_row = int(n_figures/4)
-    fig,axes = plt.subplots(figsize=(14, 10), nrows = n_row, ncols=4)
-    for ax in axes.flatten():
-        a = random.randint(0,len(data))
-        (image,label) = data[a]
-        print(type(image))
-        label = int(label)
-        l = encoder[label]
-        if(inv_normalize!=None):
-            image = inv_normalize(image)
-        
-        image = image.numpy().transpose(1,2,0)
-        im = ax.imshow(image)
-        ax.set_title(l)
-        ax.axis('off')
-    plt.show()
 class_plot(train_data,encoder,inv_normalize)
 
 
-# In[12]:
+# In[10]:
 
 
-# 모델 작성
-class Classifier(nn.Module):
-    def __init__(self):
-        super(Classifier, self).__init__()
-        # pretrained model을 바꾸기 위해선 이부분을 교체
-        self.resnet = models.resnet152(pretrained=True) 
-        self.l1 = nn.Linear(1000 , 256)
-        self.dropout = nn.Dropout(0.75)
-        self.l2 = nn.Linear(256,6)
-        self.relu = nn.ReLU()
-
-    def forward(self, input):
-        x = self.resnet(input)
-        x = x.view(x.size(0),-1)
-        x = self.dropout(self.relu(self.l1(x)))
-        x = self.l2(x)
-        return x
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-classifier = Classifier().to(device)
+classifier = pretrained_resnet152()
 
 
-# In[13]:
+# In[ ]:
 
 
 # 크로스 엔트로피 loss
 criterion = nn.CrossEntropyLoss()
 
 
-# In[14]:
+# In[ ]:
 
 
 # 얼리스탑핑
@@ -259,17 +166,20 @@ class EarlyStopping:
         self.val_loss_min = val_loss
 
 
-# In[15]:
+# In[ ]:
 
 
 # train
+# fold count 추가
 def train(model,dataloaders,criterion,num_epochs=10,lr=0.00001,batch_size=8,patience = None):
+    
     since = time.time()
     model.to(device)
     best_acc = 0.0
     phase1 = dataloaders.keys()
     losses = list()
     acc = list()
+    
     if(patience!=None):
         earlystop = EarlyStopping(patience = patience,verbose = True)
     for epoch in range(num_epochs):
@@ -323,7 +233,7 @@ def train(model,dataloaders,criterion,num_epochs=10,lr=0.00001,batch_size=8,pati
     return losses,acc
 
 
-# In[16]:
+# In[ ]:
 
 
 def test(dataloader):
@@ -366,7 +276,7 @@ def test(dataloader):
     return true,pred,image,true_wrong,pred_wrong
 
 
-# In[17]:
+# In[ ]:
 
 
 def error_plot(loss):
@@ -464,7 +374,7 @@ def performance_matrix(true,pred):
     print('Precision: {} Recall: {}, Accuracy: {}: ,f1_score: {}'.format(precision*100,recall*100,accuracy*100,f1_score*100))
 
 
-# In[18]:
+# In[ ]:
 
 
 def train_model(model,dataloaders,criterion,num_epochs=10,lr=0.0001,batch_size=8,patience = None,classes = None):
@@ -488,8 +398,20 @@ def train_model(model,dataloaders,criterion,num_epochs=10,lr=0.0001,batch_size=8
             plot_confusion_matrix(true, pred, classes= classes,title='Confusion matrix, without normalization')
 
 
-# In[19]:
+# In[ ]:
 
 
 train_model(classifier,dataloaders,criterion,50, patience = 10 , batch_size = batch_size , classes = classes)
+
+
+# In[ ]:
+
+
+scores = cross_val_score(train_model(classifier,dataloaders,criterion,50, patience = 10 , batch_size = batch_size , classes = classes), cv = 5, scoring = "accuracy")
+
+
+# In[ ]:
+
+
+
 
